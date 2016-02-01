@@ -3,18 +3,14 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
-	"fmt"
+	"io"
 	"log"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
-)
 
-type Proxy struct {
-	DestPort string
-	DestUrl  string
-}
+	"github.com/johnlonganecker/go-proxy/proxy"
+)
 
 func main() {
 
@@ -25,61 +21,66 @@ func main() {
 
 	flag.Parse()
 
-	proxy := Proxy{
+	proxy := proxy.Proxy{
 		DestPort: *destPort,
 		DestUrl:  *destUrl,
 	}
 
-	fmt.Println("Al Broker")
-	fmt.Println("------------------")
-	fmt.Println("listening port: " + *listeningPort)
-	fmt.Println("destination port: " + *destPort)
-	fmt.Println("destination url: " + *destUrl)
+	log.Println("Al Broker")
+	log.Println("------------------")
+	log.Println("listening port: " + *listeningPort)
+	log.Println("destination port: " + *destPort)
+	log.Println("destination url: " + *destUrl)
 
 	// intercept call
-	http.HandleFunc("/sayblah", SayBlah)
+	http.HandleFunc("/v2/catalog", handleCatalog)
 
 	// all other traffic pass on
 	http.HandleFunc("/", proxy.HttpHandler)
 	http.ListenAndServe(":"+*listeningPort, nil)
 }
 
-func (p *Proxy) HttpHandler(w http.ResponseWriter, r *http.Request) {
+func handleCatalog(w http.ResponseWriter, r *http.Request) {
 
-	// request url
-	fmt.Println(r.URL.EscapedPath())
+	headers := make(map[string]string)
 
-	u, err := url.Parse(p.DestUrl + ":" + p.DestPort)
-	if err != nil {
-		w.Write([]byte(err.Error()))
-		return
+	headers["Content-Type"] = "application/json"
+
+	resp, err := MakeRequest("GET", "http://localhost:8000/json.json", headers, "")
+	dec := json.NewDecoder(resp.Body)
+
+	defer resp.Body.Close()
+
+	for {
+		var dataMap map[string]interface{}
+		if err := dec.Decode(&dataMap); err == io.EOF {
+			break
+		} else if err != nil {
+			log.Println(err)
+			return
+		}
+		log.Printf("%+v", dataMap)
 	}
 
-	proxy := httputil.NewSingleHostReverseProxy(u)
-
-	proxy.Transport = &interceptorTransport{}
-
-	proxy.ServeHTTP(w, r)
+	if err != nil {
+		// handle error
+	}
 }
 
-func SayBlah(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("BLAH"))
-}
+func MakeRequest(method string, uri string, headers map[string]string, fields string) (*http.Response, error) {
+	req, err := http.NewRequest(method, uri, nil)
 
-type interceptorTransport struct{}
-
-func (t *interceptorTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	resp, err := http.DefaultTransport.RoundTrip(req)
-	if err != nil {
-		return nil, err
+	// built up request headers
+	for key, value := range headers {
+		req.Header.Set(key, value)
 	}
 
-	body, err := httputil.DumpResponse(resp, true)
+	// initiate the request
+	resp, err := http.DefaultClient.Do(req)
+
 	if err != nil {
-		return nil, err
+		return resp, err
 	}
 
-	log.Print(string(body))
-
-	return resp, err
+	return resp, nil
 }
