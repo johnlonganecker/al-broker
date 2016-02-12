@@ -1,86 +1,69 @@
 // helpful resource with additional content:
 // http://stackoverflow.com/questions/21270945/how-to-read-the-response-from-a-newsinglehostreverseproxy
+
+// one al-broker per SB
+
 package main
 
 import (
-	"encoding/json"
 	"flag"
-	"io"
+	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 
-	"github.com/johnlonganecker/go-proxy/proxy"
+	"github.com/gorilla/mux"
+	"github.com/johnlonganecker/al-broker/config"
+	"github.com/johnlonganecker/al-broker/interceptor"
+	"github.com/johnlonganecker/al-broker/proxy"
 )
 
 func main() {
 
 	// handle flags
-	listeningPort := flag.String("listening-port", "8080", "a string")
-	destPort := flag.String("dest-port", "8080", "a string")
-	destUrl := flag.String("dest-url", "127.0.0.1", "a string")
+	configFile := flag.String("config", "config.yml", "path to config file")
 
 	flag.Parse()
 
-	proxy := proxy.Proxy{
-		DestPort: *destPort,
-		DestUrl:  *destUrl,
+	// load configs
+	c := config.Config{}
+	err := c.LoadConfigFile(*configFile)
+	if err != nil {
+		log.Fatalf("error: %v", err)
 	}
+
+	// Service Broker URL
+	u, err := url.Parse(c.SbUrl + ":" + c.SbPort)
+	if err != nil {
+		log.Fatalf("error: %v", err)
+		return
+	}
+
+	proxy := proxy.Proxy{Url: u}
 
 	log.Println("Al Broker")
 	log.Println("------------------")
-	log.Println("listening port: " + *listeningPort)
-	log.Println("destination port: " + *destPort)
-	log.Println("destination url: " + *destUrl)
+	log.Println("listening port: " + c.Port)
+	log.Println("service broker port: " + c.SbPort)
+	log.Println("service broker url: " + c.SbUrl)
 
-	// intercept call
-	http.HandleFunc("/v2/catalog", handleCatalog)
+	muxRouter := mux.NewRouter()
 
-	// all other traffic pass on
-	http.HandleFunc("/", proxy.HttpHandler)
-	http.ListenAndServe(":"+*listeningPort, nil)
-}
+	// listen for each route and apply its handler function
+	for _, route := range c.Routes {
 
-func handleCatalog(w http.ResponseWriter, r *http.Request) {
+		inter := interceptor.Interceptor{}
 
-	headers := make(map[string]string)
+		inter.Listen = route.Listen
+		inter.Destination = route.Destination
+		inter.Proxy = proxy
 
-	headers["Content-Type"] = "application/json"
+		muxRouter.HandleFunc(route.Listen.Url, inter.HandleHttp).Methods(route.Listen.HttpMethod)
 
-	resp, err := MakeRequest("GET", "http://localhost:8000/json.json", headers, "")
-	dec := json.NewDecoder(resp.Body)
-
-	defer resp.Body.Close()
-
-	for {
-		var dataMap map[string]interface{}
-		if err := dec.Decode(&dataMap); err == io.EOF {
-			break
-		} else if err != nil {
-			log.Println(err)
-			return
-		}
-		log.Printf("%+v", dataMap)
+		fmt.Println("adding route " + route.Listen.HttpMethod + " " + route.Listen.Url)
 	}
 
-	if err != nil {
-		// handle error
-	}
-}
-
-func MakeRequest(method string, uri string, headers map[string]string, fields string) (*http.Response, error) {
-	req, err := http.NewRequest(method, uri, nil)
-
-	// built up request headers
-	for key, value := range headers {
-		req.Header.Set(key, value)
-	}
-
-	// initiate the request
-	resp, err := http.DefaultClient.Do(req)
-
-	if err != nil {
-		return resp, err
-	}
-
-	return resp, nil
+	// all other traffic pass on to
+	muxRouter.HandleFunc("/{.*}", proxy.HttpHandler)
+	http.ListenAndServe(":"+c.Port, muxRouter)
 }
