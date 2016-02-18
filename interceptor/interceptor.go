@@ -63,6 +63,7 @@ func (i *Interceptor) CallProxy(w http.ResponseWriter, r *http.Request, serviceC
 	return nil
 }
 
+// make an http request
 func (i *Interceptor) MakeRequest(httpMethod string, uri string, header http.Header) (*http.Response, error) {
 	req, err := http.NewRequest(httpMethod, uri, nil)
 

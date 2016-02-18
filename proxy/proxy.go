@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -12,11 +11,7 @@ type Proxy struct {
 	Transport http.RoundTripper
 }
 
-// use straight through
 func (p *Proxy) HttpHandler(w http.ResponseWriter, r *http.Request) {
-
-	// request url
-	fmt.Println(r.URL.EscapedPath())
 
 	proxy := httputil.NewSingleHostReverseProxy(p.Url)
 

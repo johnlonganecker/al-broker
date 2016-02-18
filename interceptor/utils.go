@@ -3,7 +3,6 @@ package interceptor
 import (
 	"encoding/json"
 	"io"
-	"log"
 	"net/http"
 )
 
@@ -23,7 +22,6 @@ func DecodeBody(resp http.Response) (map[string]interface{}, error) {
 		} else if err != nil {
 			return nil, err
 		}
-		log.Printf("%+v", dataMap)
 
 		for k, v := range dataMap {
 			results[k] = v

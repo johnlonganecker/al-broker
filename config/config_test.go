@@ -1,8 +1,6 @@
 package config_test
 
 import (
-	"net/http"
-
 	. "github.com/johnlonganecker/al-broker/config"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -19,32 +17,7 @@ var _ = Describe("Config File", func() {
 	)
 
 	BeforeEach(func() {
-		validFilePath = "../config.yml"
-		invalidFilePath = "blah"
-
-		config = Config{
-			Port:   "",
-			SbPort: "",
-			SbUrl:  "",
-			Routes: []Route{
-				Route{
-					Listen: Transaction{
-						Url:         "",
-						HttpMethod:  "",
-						Headers:     http.Header{},
-						Mappings:    make(map[string]string),
-						ExtraFields: make(map[string]string),
-					},
-					Destination: Transaction{
-						Url:         "",
-						HttpMethod:  "",
-						Headers:     http.Header{},
-						Mappings:    make(map[string]string),
-						ExtraFields: make(map[string]string),
-					},
-				},
-			},
-		}
+		config = Config{}
 
 		invalidYamlFileContents = []byte(`field: 
 --`)
@@ -87,15 +60,21 @@ routes:
 	})
 
 	Describe("Load config file", func() {
-		Context("with valid file", func() {
-			_, err := LoadFile(validFilePath)
+
+		BeforeEach(func() {
+			validFilePath = "../config.yml"
+			invalidFilePath = "blah"
+		})
+
+		Context("with valid filepath", func() {
 			It("should return no error", func() {
+				_, err := LoadFile(validFilePath)
 				Expect(err).NotTo(HaveOccurred())
 			})
 		})
-		Context("with invalid file", func() {
-			_, err := LoadFile(invalidFilePath)
+		Context("with invalid filepath", func() {
 			It("should fail if file doesn't exist", func() {
+				_, err := LoadFile(invalidFilePath)
 				Expect(err).To(HaveOccurred())
 			})
 		})
