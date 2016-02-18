@@ -12,7 +12,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/gorilla/mux"
+	"github.com/johnlonganecker/al-broker/Godeps/_workspace/src/github.com/gorilla/mux"
 	"github.com/johnlonganecker/al-broker/config"
 	"github.com/johnlonganecker/al-broker/interceptor"
 	"github.com/johnlonganecker/al-broker/proxy"
